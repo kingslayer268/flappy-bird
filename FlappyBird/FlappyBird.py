@@ -1,8 +1,12 @@
-import pygame, sys, random, json
+import pygame
+import sys
+import random
+import json
 from pygame import display as display
 pygame.init()
 
 #game functions
+
 def floor_func():
     screen.blit(floor, (floor_x, 450))
     screen.blit(floor,(floor_x+288, 450))
@@ -79,12 +83,15 @@ def update_high_score(score, high_score):
 
 #game resources 
 screen = display.set_mode((288, 512))
+
 display.set_caption("Flappy Bird")
+
 clock = pygame.time.Clock()
+
 game_font = pygame.font.Font('04B_19.TTF', 40)
 
-
 game_over = pygame.transform.rotozoom(pygame.image.load('assets/gameover.png'), 0, 1.4)
+
 over_rect = game_over.get_rect(center=(144, 256))
 
 bg = pygame.image.load('assets/background-day.png').convert()
@@ -93,38 +100,66 @@ floor = pygame.image.load('assets/base.png')
 
 
 bird_surface1 = pygame.image.load('assets/yellowbird-upflap.png').convert_alpha()
+
 bird_surface2 = pygame.image.load('assets/yellowbird-midflap.png').convert_alpha()
+
 bird_surface3 = pygame.image.load('assets/yellowbird-downflap.png').convert_alpha()
+
 bird_frames = [bird_surface1, bird_surface2, bird_surface3]
+
 bird_index = 0
+
 bird_surface = bird_frames[bird_index]
+
 bird_rect = bird_surface.get_rect(center=(50, 256))
+
 BIRD_ANIMATION = pygame.USEREVENT + 1
+
 pygame.time.set_timer(BIRD_ANIMATION, 200)
 
-
 pipe = pygame.image.load('assets/pipe-green.png')
+
 pipe_list = []
+
 passed_pipes = []
+
 pipe_height = [200,300,400]
+
 SPAWNPIPE = pygame.USEREVENT
+
 pygame.time.set_timer(SPAWNPIPE, 1000)
 
 jump_sound = pygame.mixer.Sound('sound/sfx_swooshing.wav')
+
 die_sound = pygame.mixer.Sound('sound/sfx_hit.wav')
+
 point_sound = pygame.mixer.Sound('sound/sfx_point.wav')
+
 wing_sound = pygame.mixer.Sound('sound/sfx_wing.wav')
 
-# Game Variables
-floor_x = 0
-gravity = 0.125
-bird_movement = 0
-game_running = True
-score = 0
-high_score = 0
 with open('high_score.json') as data:
     file = json.load(data)
     high_score_from_json = file["high_score"]
+
+# Game Variables
+floor_x = 0
+
+gravity = 0.125
+
+bird_movement = 0
+
+game_running = True
+
+score = 0
+
+high_score = 0
+
+invincibility = False
+
+invincibility_on_cooldown = False
+
+last_used = 0
+
 
 # Game loop 
 while True:
@@ -132,17 +167,27 @@ while True:
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
+
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE and game_running == True:
                 bird_movement = 0
                 bird_movement -= 4
                 wing_sound.play()
+
             if event.key == pygame.K_SPACE and game_running == False:
                 bird_rect.center = (50, 256)
                 pipe_list.clear()
                 bird_movement = 0
                 game_running = True  
                 passed_pipes.clear()
+                invincibility = False
+                last_used = 0
+            
+            if event.key == pygame.K_LCTRL and game_running==True:
+                if pygame.time.get_ticks() - last_used > 15000 or last_used == 0:
+                    invincibility = True
+                    last_used = pygame.time.get_ticks()
+                    print('hit')
 
         if event.type == SPAWNPIPE and game_running == True:
             pipe_list.extend(create_pipe())  
@@ -150,10 +195,14 @@ while True:
             
             if bird_index < 2:
                 bird_index += 1
+
             else:
                 bird_index = 0
+
             bird_surface, bird_rect = bird_animation()
+
     #Main elements        
+
     screen.blit(bg, (0,0))
     floor_x -= 0.5
     if floor_x <= -288:
@@ -173,10 +222,26 @@ while True:
         pipe_list = pipe_movement(pipe_list=pipe_list)
         place_pipe(pipe_list)
         pipe_list = remove_extra_pipes(pipe_list=pipe_list)
-        game_running = check_collisons(pipe_list)
-        
+        if invincibility == False:
+            game_running = check_collisons(pipe_list)
+        else:
+            game_running = True
+            inv_surface = game_font.render(
+                f'INVINCIBLE! {int(6-(pygame.time.get_ticks()-last_used)/1000)}', True, (255, 0, 0))
+            inv_rect = inv_surface.get_rect(center=(144, 475))
+            screen.blit(inv_surface, inv_rect)
+        if last_used > 0 and pygame.time.get_ticks()-last_used > 5000:
+            invincibility = False
+        if last_used == 0 or pygame.time.get_ticks() - last_used > 15000:
+            inv_surface = game_font.render(
+                f'Press L-CTRL', True, (255, 0, 0))
+            inv_rect = inv_surface.get_rect(center=(144, 475))
+            screen.blit(inv_surface, inv_rect)
 
     else:
+        with open('high_score.json') as data:
+            file = json.load(data)
+            high_score_from_json = file["high_score"]
         high_score = update_high_score(score, high_score_from_json)
         display_score("ended")
         screen.blit(game_over, over_rect)
